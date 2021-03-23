@@ -1,0 +1,147 @@
+# MyDataShare Core JS
+
+MyDataShare Core JS is a convenience library for integrating into the [MyDataShare services](https://mydatashare.com). MyDataShare provides a full-fledged [application programming interface](https://app.swaggerhub.com/apis/MyDataShare2/MyDataShare). This library utilizes and supplements the MyDataShare API and authentication flow, and you can pick and choose freely which of its features you use.
+
+The library currently supports client side web applications and OAuth 2.0 Authorization Code Grant with PKCE for user authorization. Node environments and other authentication methods are currently not supported. The NPM package is called `mydatashare-core`.
+
+**[Jump to API documentation](#api-documentation)**
+
+## Feature Overview
+
+### Authorization
+
+One of the main functionalities of this library is to provide tools that make it easier to integrate a web-based app to use MyDataShare ID authentication and authorization. This includes
+
+- querying the available login methods (`auth_item`) from MDS API (e.g. Finnish Trust Network and Google)
+- retrieving translated login prompts and/or descriptions for the `auth_item`s
+- initiating login with the desired `auth_item`
+- and handling web app authorization using Authorization Code Grant flow with PKCE, resulting in fetching an access token for the client app.
+
+### API objects store
+
+Another main feature of the library is wrapping API objects into convenience classes and saving them to an in-memory store.
+
+This makes it easier to handle the relationships of API objects. Fetching an object's translations and urls can then be made through the object itself.
+
+### Utility Methods
+
+The library provides utility methods for handling the MDS API response entities. This includes for example easier extraction of API object URLs and translations from API responses. These can be used even if the store functionality is not used.
+
+## Examples
+
+### Store and API object wrappers
+
+```javascript
+import { AuthItem, fetchAuthItems, store, configureMdsCore } from 'mydatashare-core';
+
+// Configure the library
+configureMdsCore({ apiVersion: 'v2.0', 'AuthItem': { backgroundFetchOidConfig: true } });
+store.setLanguage('fin');
+
+// Fetch some MDS API endpoint. The library includes `fetchAuthItems` for convenience.
+const authItems = await fetchAuthItems();
+
+// Parse and store the API response objects
+store.parseApiResponse(authItems);
+
+// The store wraps the API objects in convenience classes, which can then be
+// accessed via the class' static accessor methods.
+const authItem = AuthItem.asArray(store)[0];
+
+// The wrapped API objects have the same properties as in the API response
+const defaultName = authItem.name;
+
+// In addition, they have convenience methods that utilize the objects saved in store
+const finnishName = authItem.getTranslation('name');
+const idProvider = authItem.getIdProvider();
+const icon = authItem.getUrls('icon_medium')[0];
+```
+
+### Authorization flow
+
+```javascript
+import { AuthItem, fetchAuthItems, store, configureMdsCore } from 'mydatashare-core';
+
+// Get a hold of the AuthItem that we want to initiate login with.
+configureMdsCore({ 'AuthItem': { backgroundFetchOidConfig: true } });
+const authItems = await fetchAuthItems();
+store.parseApiResponse(authItems);
+const authItem = AuthItem.asArray(store)[0];
+
+// Start the authorization via an AuthItem.
+authItem.performAuthorization(
+  'My Client ID',               // client ID
+  'https://example.com/login',  // redirect URI
+  'some-scope another-scope'    // scope
+);
+```
+
+Now the user is taken to log in. After a successful login,  the flow continues in the redirect URI. There the Authorization Code parameters are exchanged for a token via a token request.
+
+```javascript
+import { authorizationCallback } from 'mydatashare-core';
+// authorizationCallback handles making the token request
+authorizationCallback('My Client ID', 'https://example.com/login')
+  .then((authorizationData) => {
+    const accessToken = authorizationData.accessToken;
+    const idToken = authorizationData.idToken;
+  })
+```
+
+When it's time end the session, call `endSession`:
+
+```javascript
+import { endSession } from 'mydatashare-core';
+endSession('https://example.com/logout');  // Pass in the post logout redirect URI
+// The browser visits the ID provider's end session endpoint, and then redirects
+// back to the redirect URI given to `endSession`.
+```
+
+## Development
+
+### API docs and readme
+
+[jsdoc-to-markdown](https://github.com/jsdoc2md/jsdoc-to-markdown) is used for generating API documentation to the readme from jsdoc comments. If you want to edit the readme, make the edits in the readme source file `README.hbs`.
+
+After editing `README.hbs` or making changes to the code or its jsdoc comments, generate a new version of `README.md`:
+
+```bash
+npm run docs
+```
+
+### Releasing a new version
+
+When all the feature commits are done, add one last commit to bump the version number using `npm-version`, which commits and adds a git tag automatically. This will also execute the test suite before version upgrade. It also won't let you upgrade the version unless your git working directory is clean.
+
+```bash
+# For a patch version update
+npm version patch
+
+# For a minor version update
+npm version minor
+
+# For a major version update
+npm version major
+```
+
+After bumping the version number, you shouldn't add any more commits – so the version commit should be the last one before merge to master branch.
+
+If you realize that you have to add more commits after bumping the version, reset the version changes and remove the git tag. Then bump the version again after making the needed commits.
+
+### Linking to projects
+
+If you want to see changes made to this library in real time (without running `npm install`) in a project that is using this library, you have to link this repostiroy directory into the node_modules of the other project.
+
+```bash
+# In this project
+npm link
+
+# In another project that depends on mydatashare-core
+npm link mydatashare-core
+```
+
+After linking, changes made to mydatashare-core will be reflected immediately to the other project too.
+
+## API documentation
+
+{{>main}}
