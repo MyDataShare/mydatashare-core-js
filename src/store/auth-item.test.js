@@ -32,22 +32,61 @@ const ID_PROVIDER = new IdProvider(null, {
   uuid: '11',
   name: 'id_provider name 11',
   description: 'id_provider descrtipion 11',
-  url_group_id: 1,
+  'metadatas.uuid': ['url1'],
 });
 
 const ID_PROVIDER_2 = new IdProvider(null, {
   uuid: '222',
   name: 'id_provider name 222',
   description: 'id_provider descrtipion 222',
-  url_group_id: 22,
+  'metadatas.uuid': ['url2'],
 });
+
+const OID_CONFIG_METADATA_1 = {
+  suppressed_fields: [],
+  subtype1: 'openid_configuration',
+  uuid: 'url1',
+  model: 'id_provider',
+  updated: '2021-10-13T06:00:49.655277+00:00',
+  subtype2: null,
+  deleted: false,
+  model_uuid: '11',
+  json_data: {
+    name: 'url name',
+    method_type: 'get',
+    url_type: 'openid_configuration',
+    url: OID_CONFIG_URL,
+  },
+  created: '2021-10-13T06:00:49.655263+00:00',
+  name: 'openid_configuration',
+  type: 'url',
+};
+
+const OID_CONFIG_METADATA_2 = {
+  suppressed_fields: [],
+  subtype1: 'openid_configuration',
+  uuid: 'url2',
+  model: 'id_provider',
+  updated: '2021-10-13T06:00:49.655277+00:00',
+  subtype2: null,
+  deleted: false,
+  model_uuid: '222',
+  json_data: {
+    name: 'url name',
+    method_type: 'get',
+    url_type: 'openid_configuration',
+    url: OID_CONFIG_URL_2,
+  },
+  created: '2021-10-13T06:00:49.655263+00:00',
+  name: 'openid_configuration',
+  type: 'url',
+};
 
 const AUTH_ITEM = new AuthItem(null, {
   uuid: '1',
   name: 'auth_item 1 name',
   description: 'auth_item 1 description',
   id_provider_uuid: ID_PROVIDER.uuid,
-  translation_id: 1,
 });
 
 const AUTH_ITEM_2 = new AuthItem(null, {
@@ -72,14 +111,8 @@ const AUTH_ITEMS_JSON_SINGLE = Object.freeze({
   id_providers: {
     11: ID_PROVIDER,
   },
-  urls: {
-    1: [
-      {
-        url_group_id: 1,
-        url_type: 'openid_configuration',
-        url: OID_CONFIG_URL,
-      },
-    ],
+  metadatas: {
+    url1: OID_CONFIG_METADATA_1,
   },
 });
 
@@ -91,14 +124,8 @@ const AUTH_ITEMS_JSON = Object.freeze({
   id_providers: {
     11: ID_PROVIDER,
   },
-  urls: {
-    1: [
-      {
-        url_group_id: 1,
-        url_type: 'openid_configuration',
-        url: OID_CONFIG_URL,
-      },
-    ],
+  metadatas: {
+    url1: OID_CONFIG_METADATA_1,
   },
 });
 
@@ -111,21 +138,9 @@ const AUTH_ITEMS_JSON_MULTIPLE_IDP = Object.freeze({
     11: ID_PROVIDER,
     222: ID_PROVIDER_2,
   },
-  urls: {
-    1: [
-      {
-        url_group_id: 1,
-        url_type: 'openid_configuration',
-        url: OID_CONFIG_URL,
-      },
-    ],
-    22: [
-      {
-        url_group_id: 22,
-        url_type: 'openid_configuration',
-        url: OID_CONFIG_URL_2,
-      },
-    ],
+  metadatas: {
+    url1: OID_CONFIG_METADATA_1,
+    url2: OID_CONFIG_METADATA_2,
   },
 });
 
@@ -278,7 +293,6 @@ describe('setting OID configuration', () => {
         name: 'auth_item 1 name',
         description: 'auth_item 1 description',
         id_provider_uuid: ID_PROVIDER.uuid,
-        translation_id: 1,
       },
       { oidConfigUrl: OID_CONFIG_URL },
     );
@@ -365,23 +379,6 @@ describe('authorization performed with AuthItem', () => {
     expect(authItem.oidConfig).toEqual(OID_CONFIG);
   });
 
-  test('given response mode is used', async () => {
-    const authItem = buildTestAuthItem({ oidConfig: OID_CONFIG });
-    await authItem.performAuthorization(CLIENT_ID, REDIRECT_URI, SCOPE, {
-      responseMode: 'query',
-    });
-    const authCalls = mockPerformAuthorizationRequest.mock.calls;
-    expect(authCalls.length).toBe(1);
-    expect(authCalls[0].length).toBe(2);
-    const oidConfig = authCalls[0][0];
-    expect(oidConfig).toEqual(OID_CONFIG);
-    const authRequest = authCalls[0][1];
-    expect(authRequest).toEqual(
-      buildTestAuthRequest({}, { response_mode: 'query' }),
-    );
-    expect(authItem.oidConfig).toEqual(OID_CONFIG);
-  });
-
   test('nonce and oidConfig are saved to store', async () => {
     const authItem = buildTestAuthItem({ oidConfig: OID_CONFIG });
     await authItem.performAuthorization(CLIENT_ID, REDIRECT_URI, SCOPE);
@@ -393,16 +390,6 @@ describe('authorization performed with AuthItem', () => {
 });
 
 describe('authorization callback', () => {
-  test('rejects promise when given invalid responseMode', async () => {
-    await expect(
-      authorizationCallback(CLIENT_ID, REDIRECT_URI, {
-        responseMode: 'search',
-      }),
-    ).rejects.toEqual(
-      new Error('Invalid responseMode parameter given. It should be one of [fragment, query]'),
-    );
-  });
-
   test('rejects promise if authorization code is not in params', async () => {
     await expect(
       authorizationCallback(CLIENT_ID, REDIRECT_URI),

@@ -1,5 +1,3 @@
-import { mergeTranslations } from './translations';
-
 /**
  * Combine a list of objects received from MyDataShare API into a single object.
  * The responses should be the unmodified full JSON responses as they are
@@ -26,15 +24,8 @@ const combinePaginatedResponses = (responses) => {
     Object.entries(currentPage).forEach((entry) => {
       const [resourceName, resources] = entry;
       if (typeof resources === 'object' && resources) {
-        if (resourceName === 'translations') {
-          if (!('translations' in combined)) {
-            combined.translations = resources;
-          } else {
-            mergeTranslations(combined.translations, resources);
-          }
-        } else {
-          Object.assign(combined[resourceName], resources);
-        }
+        if (!(resourceName in combined)) combined[resourceName] = {};
+        Object.assign(combined[resourceName], resources);
       }
     });
   });
@@ -54,22 +45,24 @@ const combinePaginatedResponses = (responses) => {
  */
 const fetchAllPages = async (url, { options } = {}) => {
   const ret = [];
-  const headers = { 'Content-Type': 'application/json' };
   let response; let json; let
     fetchConfig;
-  const body = { offset: 0 };
+  const params = { offset: 0 };
   // eslint-disable-next-line no-constant-condition
   while (true) {
-    fetchConfig = { ...options, headers, body: JSON.stringify(body) };
+    fetchConfig = { ...options };
     // We must await in a loop, because we don't know if we need to continue looping until after
     // the promise has been resolved.
     // eslint-disable-next-line no-await-in-loop
-    response = await fetch(url, fetchConfig);
+    response = await fetch(`${url}?${new URLSearchParams(params)}`, fetchConfig);
+    if (!response.ok) {
+      return Promise.reject(new Error(response.statusText));
+    }
     // eslint-disable-next-line no-await-in-loop
     json = await response.json();
     ret.push(json);
     if ('next_offset' in json) {
-      body.offset = json.next_offset;
+      params.offset = json.next_offset;
     } else {
       break;
     }

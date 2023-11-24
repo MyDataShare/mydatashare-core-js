@@ -19,14 +19,25 @@ class TranslationBase extends Base {
      * @param {Object} config
      * @param {string} config.language Optional alpha-3 language code for the
      *   translation. If not given, the current language of `store` is used.
+     * @param {boolean} config.returnUsedLanguage See the documentation of the global function
+     *   `getTranslation`.
+     * @param {boolean} config.notFoundError If true, an error will be thrown if the
+     *   requested translation was not found.
      * @returns {string} Either the translated field or if a translation doesn't
-     *   exist, the field's default value.
+     *   exist, the field's default value. The return value is an object if `returnUsedLanguage` is
+     *   used, see the documentation of the global function `getTranslation` for the format.
      * @see {@link Store#setLanguage}
      * @see {@link LANGUAGES}
      */
-  getTranslation(field, { language } = {}) {
+  getTranslation(field, { language, notFoundError, returnUsedLanguage } = {}) {
     const lang = language || this.store.language;
-    return getTranslation(this, field, lang, this.store.translations);
+    return getTranslation(
+      this,
+      field,
+      lang,
+      this.store.metadatas,
+      { notFoundError, returnUsedLanguage },
+    );
   }
 }
 

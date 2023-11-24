@@ -1,14 +1,29 @@
+const getUrlMetadata = (metadatas, obj = null) => Object.fromEntries(
+  Object.entries(metadatas).filter(
+    ([metadataUuid, metadata]) => {
+      const isUrl = metadata.type === 'url';
+      if (obj !== null) {
+        if (!('metadatas.uuid' in obj)) {
+          throw new Error('Given object does not have metadata.');
+        }
+        return isUrl && obj['metadatas.uuid'].includes(metadataUuid);
+      }
+      return isUrl;
+    },
+  ),
+);
+
 /**
  * Return URLs of specific type for given API object from given URLs resource.
  *
- * The URLs are extracted from the given urls object, if found. If URLs are not
+ * The URLs are extracted from the given metadatas object, if found. If URLs are not
  * found, an empty list is returned
  *
  * @param {Object} obj The API object for which the URL should be extracted for.
  *   The item must support URLs, i.e. it must have a url_group_id property.
- * @param {string} urlType The type of URLs to get (url_type property in url
+ * @param {string} urlType The type of URLs to get (subtype1 property in url metadata
  *   objects)
- * @param {Object} urls The value (object) of the urls property which can be
+ * @param {Object} metadatas The value (object) of the metadatas property which can be
  *   found in the MyDataShare API responses that contain objects that support
  *   URLs, and for which there exists URLs.
  * @param {Object} config
@@ -16,27 +31,27 @@
  *   requested URLs were not found.
  * @returns {Array.<Object>} Found URLs or empty if none was found.
  */
-const getUrls = (obj, urlType, urls, { notFoundError } = {}) => {
+const getUrls = (obj, urlType, metadatas, { notFoundError } = {}) => {
   let ret = [];
   const handleNotFound = (msg) => {
     if (notFoundError) throw new Error(msg);
   };
-  if (!urls) {
-    handleNotFound('Did not receive urls');
+  if (!metadatas) {
+    handleNotFound('Did not receive metadatas');
     return ret;
   }
-  if (!(obj.url_group_id in urls)) {
-    handleNotFound(`No urls exist for url_group_id ${obj.url_group_id}`);
+
+  let urls;
+  try {
+    urls = getUrlMetadata(metadatas, obj);
+  } catch (e) {
+    handleNotFound('Given object does not have metadata.');
     return ret;
   }
-  ret = urls[obj.url_group_id].filter((url) => url.url_type === urlType);
-  if (!ret) {
-    handleNotFound(
-      `No urls with url_type "${urlType}" exist in group ${obj.url_group_id}`,
-    );
-  }
+
+  ret = Object.values(urls).filter((m) => m.subtype1 === urlType);
   return ret;
 };
 
 // eslint-disable-next-line import/prefer-default-export
-export { getUrls };
+export { getUrlMetadata, getUrls };

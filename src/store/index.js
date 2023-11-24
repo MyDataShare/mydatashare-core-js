@@ -8,9 +8,7 @@ import {
   tokenCallback,
 } from './auth-item';
 import { IdProvider } from './id-provider';
-import { Translation } from './translation';
-import { Url } from './url';
-import { mergeTranslations } from '../api/translations';
+import { Metadata } from './metadata';
 import { combinePaginatedResponses } from '../api';
 
 /**
@@ -40,8 +38,7 @@ class Store {
     this.language = null;
     this.authItems = {};
     this.idProviders = {};
-    this.translations = {};
-    this.urls = {};
+    this.metadatas = {};
   }
 
   /**
@@ -50,8 +47,7 @@ class Store {
   clear() {
     this.authItems = {};
     this.idProviders = {};
-    this.translations = {};
-    this.urls = {};
+    this.metadatas = {};
   }
 
   /**
@@ -71,6 +67,13 @@ class Store {
     let res = JSON.parse(JSON.stringify(response));
     if (res instanceof Array) res = combinePaginatedResponses(res);
 
+    if ('metadatas' in res) {
+      this.metadatas = {
+        ...this.metadatas,
+        ...Metadata.parse(res, this),
+      };
+    }
+
     if ('auth_items' in res) {
       this.authItems = {
         ...this.authItems,
@@ -83,17 +86,6 @@ class Store {
         ...this.idProviders,
         ...IdProvider.parse(res, this),
       };
-    }
-
-    if ('translations' in res) {
-      this.translations = mergeTranslations(
-        this.translations,
-        Translation.parse(res, this),
-      );
-    }
-
-    if ('urls' in res) {
-      this.urls = { ...this.urls, ...Url.parse(res, this) };
     }
   }
 
@@ -119,8 +111,7 @@ export {
   AuthItem,
   AuthorizationData,
   IdProvider,
-  Translation,
-  Url,
+  Metadata,
   authorizationCallback,
   endSession,
   fetchOidConfig,

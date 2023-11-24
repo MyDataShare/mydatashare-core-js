@@ -12,7 +12,6 @@ import {
   TokenResponse,
 } from '@openid/appauth';
 import { getMdsCoreConfig } from '../config';
-import { RESPONSE_MODE_FRAGMENT, RESPONSE_MODE_QUERY } from '../constants';
 import {
   getConfig,
   getOidConfigFromConfig,
@@ -22,7 +21,6 @@ import {
 import {
   decodeJwt,
   getHashParams,
-  getSearchParams,
   parseQueryString,
 } from '../utils';
 import TranslationUrlBase from './base/translation-url-base';
@@ -40,18 +38,18 @@ const getOptions = () => {
   return config;
 };
 
-const getOidConfigUrl = (idProvider, urls) => {
-  const idpUrls = urls[idProvider.url_group_id];
-  if (!(idpUrls && idpUrls.length)) {
-    return null;
-  }
-  const oidConfigUrl = idpUrls.find(
-    (url) => url.url_type === 'openid_configuration',
+const getOidConfigUrl = (idProvider, metadatas) => {
+  const oidConfigUrl = Object.values(metadatas).find(
+    (metadata) => (
+      metadata.model_uuid === idProvider.uuid
+      && metadata.type === 'url'
+      && metadata.subtype1 === 'openid_configuration'
+    ),
   );
   if (!oidConfigUrl) {
     return null;
   }
-  return oidConfigUrl.url;
+  return oidConfigUrl.json_data.url;
 };
 
 const fetchOidConfig = async (url) => {
@@ -88,13 +86,13 @@ const buildAuthorizationRequest = (
   clientId,
   redirectUri,
   scope,
-  { state, responseMode } = {},
+  { state } = {},
 ) => {
   const extras = {
     ...(typeof extra === 'string' || extra instanceof String
       ? parseQueryString(extra)
       : extra),
-    response_mode: responseMode || 'fragment',
+    response_mode: 'fragment',
     nonce: generateNonce(),
   };
   return new AuthorizationRequest({
@@ -166,6 +164,9 @@ class AuthItem extends TranslationUrlBase {
   /**
    * Redirect user to authorize using given this AuthItem.
    *
+   * The fragment response mode is always used, meaning this library instructs the IdP to return
+   * the authorization code and other parameters in the fragment part of the login redirect URI.
+   *
    * @param {string} clientId Client ID registered with the IdProvider of given AuthItem.
    * @param {string} redirectUri The redirect_uri registered for the given client.
    * @param {string} scope A space separated string of scopes to request from the
@@ -175,10 +176,6 @@ class AuthItem extends TranslationUrlBase {
    *   authorization flow. The state parameter is verified as described in
    *   [RFC 6749]{@link https://tools.ietf.org/html/rfc6749#section-10.12}.
    *   If state is not given, a secure state is generated automatically.
-   * @param config.responseMode either {@link RESPONSE_MODE_FRAGMENT} (default)
-   *   or {@link RESPONSE_MODE_QUERY}. Dictates whether to instruct the IdProvider
-   *   to return the Authorization Code flow parameters in the URL's search or
-   *   hash params.
    * @returns {Promise<void>}
    * @see {@link authorizationCallback}
    */
@@ -186,7 +183,7 @@ class AuthItem extends TranslationUrlBase {
     clientId,
     redirectUri,
     scope,
-    { state, responseMode } = {},
+    { state } = {},
   ) {
     if (this.fetchingOidConfig instanceof Promise) {
       this.oidConfig = await this.fetchingOidConfig;
@@ -200,7 +197,7 @@ class AuthItem extends TranslationUrlBase {
       clientId,
       redirectUri,
       scope,
-      { state, responseMode },
+      { state },
     );
 
     saveConfig('nonce', request.extras.nonce);
@@ -256,8 +253,8 @@ AuthItem.configure = (config) => {
   defaultConfig = { ...defaultConfig, ...config };
 };
 
-const createAuthItems = (store, idProvider, urls, authItems) => {
-  const oidConfigUrl = getOidConfigUrl(idProvider, urls);
+const createAuthItems = (store, idProvider, metadatas, authItems) => {
+  const oidConfigUrl = getOidConfigUrl(idProvider, metadatas);
   const ret = {};
   if (!oidConfigUrl) return ret;
   let fetchingOidConfig;
@@ -280,10 +277,8 @@ AuthItem.parse = function parse(apiResponse, store) {
     !Object.keys(apiResponse).length
     || !('id_providers' in apiResponse)
     || !Object.keys(apiResponse.id_providers).length
-    || !('urls' in apiResponse)
-    || !Object.keys(apiResponse.urls).length
-    || !('auth_items' in apiResponse)
-    || !Object.keys(apiResponse.auth_items).length
+    || !('metadatas' in apiResponse)
+    || !Object.keys(apiResponse.metadatas).length
   ) {
     return {};
   }
@@ -295,7 +290,7 @@ AuthItem.parse = function parse(apiResponse, store) {
       (item) => item.id_provider_uuid === idpUuid,
     );
     if (currentItems.length) {
-      const items = createAuthItems(store, idp, apiResponse.urls, currentItems);
+      const items = createAuthItems(store, idp, apiResponse.metadatas, currentItems);
       if (Object.keys(items).length) authItems = { ...authItems, ...items };
     }
   });
@@ -388,30 +383,11 @@ const performTokenRequest = async (
  *
  * @param {string} clientId The client ID to use.
  * @param {string} redirectUri The redirect_uri registered for given client.
- * @param {Object} config
- * @param {string} config.responseMode Either {@link RESPONSE_MODE_FRAGMENT} (default)
- *   or {@link RESPONSE_MODE_QUERY}. Dictates whether the callback will try to
- *   look for Authorization Code flow parameters from the URL's search or hash
- *   parameters.
  * @returns {Promise<AuthorizationData>} Returns a Promise which resolves with
  *   access and id token information.
  */
-const authorizationCallback = async (
-  clientId,
-  redirectUri,
-  { responseMode } = {},
-) => {
-  const mode = responseMode || RESPONSE_MODE_FRAGMENT;
-  let params;
-  if (mode === RESPONSE_MODE_FRAGMENT) {
-    params = getHashParams();
-  } else if (mode === RESPONSE_MODE_QUERY) {
-    params = getSearchParams();
-  } else {
-    return Promise.reject(
-      new Error(`Invalid responseMode parameter given. It should be one of [${RESPONSE_MODE_FRAGMENT}, ${RESPONSE_MODE_QUERY}]`),
-    );
-  }
+const authorizationCallback = async (clientId, redirectUri) => {
+  const params = getHashParams();
 
   if (params.error) {
     return Promise.reject(

@@ -1,27 +1,25 @@
 import { configureMdsCore } from './config';
-import { RESPONSE_MODE_FRAGMENT, RESPONSE_MODE_QUERY } from './constants';
 import {
   store,
   AuthItem,
   AuthorizationData,
   IdProvider,
-  Translation,
-  Url,
+  Metadata,
   authorizationCallback,
   endSession,
 } from './store';
-import LANGUAGES from './languages';
+import { LANGUAGES, LANGUAGES_ALPHA_3 } from './languages';
 import {
   combinePaginatedResponses,
   fetchAllPages,
 } from './api';
 import { fetchAuthItems } from './api/auth_items';
 import {
+  getTranslationMetadata,
   getTranslation,
-  mergeTranslations,
   translateAll,
 } from './api/translations';
-import { getUrls } from './api/urls';
+import { getUrlMetadata, getUrls } from './api/urls';
 
 export {
   authorizationCallback,
@@ -30,17 +28,16 @@ export {
   endSession,
   fetchAllPages,
   fetchAuthItems,
+  getTranslationMetadata,
   getTranslation,
+  getUrlMetadata,
   getUrls,
-  mergeTranslations,
   store,
   translateAll,
   AuthorizationData,
   AuthItem,
   IdProvider,
-  Translation,
-  Url,
+  Metadata,
   LANGUAGES,
-  RESPONSE_MODE_FRAGMENT,
-  RESPONSE_MODE_QUERY,
+  LANGUAGES_ALPHA_3,
 };
